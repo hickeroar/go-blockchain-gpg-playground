@@ -1,2 +1,2 @@
-# go-blockchain-gpg-playground
-A place to store some proof of concept go blockchain &amp; gpg code.
+# Go Blockchain GPG Playground
+A place to store some proof of concept blockchain &amp; gpg code to produce an example of signed blocks.
