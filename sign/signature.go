@@ -2,13 +2,12 @@ package sign
 
 import (
 	"github.com/ProtonMail/gopenpgp/v2/crypto"
+	"strconv"
 )
 
-// We would want error checking every step of the way instead of the ignores (underscores).
-
-func CreateSignature(text string, hash []byte) []byte {
+func CreateSignature(text string, timestamp int64, prevSignature []byte) []byte {
 	passphrase, _, privateKey := getCredentials()
-	message := crypto.NewPlainMessageFromString(text + string(hash))
+	message := crypto.NewPlainMessageFromString(text + strconv.FormatInt(timestamp, 10) + string(prevSignature))
 
 	privateKeyObj, _ := crypto.NewKeyFromArmored(privateKey)
 	unlockedKeyObj, _ := privateKeyObj.Unlock([]byte(passphrase))
@@ -18,9 +17,9 @@ func CreateSignature(text string, hash []byte) []byte {
 	return pgpSignature.Data
 }
 
-func VerifySignature(text string, hash []byte, signature []byte) bool {
+func VerifySignature(text string, timestamp int64, prevSignature []byte, signature []byte) bool {
 	_, publicKey, _ := getCredentials()
-	message := crypto.NewPlainMessageFromString(text + string(hash))
+	message := crypto.NewPlainMessageFromString(text + strconv.FormatInt(timestamp, 10) + string(prevSignature))
 
 	pgpSignature := &crypto.PGPSignature{Data: signature}
 	publicKeyObj, _ := crypto.NewKeyFromArmored(publicKey)

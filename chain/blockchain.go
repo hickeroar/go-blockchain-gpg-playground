@@ -1,11 +1,10 @@
 package chain
 
 import (
-	"bytes"
-	"crypto/sha256"
 	"encoding/json"
 	"errors"
 	"fmt"
+	"github.com/ProtonMail/gopenpgp/v2/crypto"
 	"github.com/hickeroar/go-blockchain-gpg-playground/sign"
 	"os"
 )
@@ -18,34 +17,22 @@ type BlockChain struct {
 type Block struct {
 	BlockIndex int64
 	Data       string
-	Hash       []byte
+	Timestamp  int64
 	Signature  []byte
 }
 
-func (b *Block) DeriveHash(prevHash []byte, prevSignature []byte) {
-	data := bytes.Join([][]byte{[]byte(b.Data), prevHash, prevSignature}, []byte{})
-	hash := sha256.Sum256(data)
-	b.Hash = hash[:]
-}
-
-func (b *Block) ValidateHash(prevBlock *Block) bool {
-	testBlock := &Block{b.BlockIndex, b.Data, []byte{}, []byte{}}
-	testBlock.DeriveHash(prevBlock.Hash, prevBlock.Signature)
-	return bytes.Compare(testBlock.Hash, b.Hash) == 0
-}
-
-func (b *Block) DeriveSignature() {
-	signature := sign.CreateSignature(b.Data, b.Hash)
+func (b *Block) DeriveSignature(prevSignature []byte) {
+	// The signature produced is derived from the payload concatenated with the previous signature.
+	// This allows the signature itself to function as the blockchain "hash." Two birds, one stone.
+	signature := sign.CreateSignature(b.Data, b.Timestamp, prevSignature)
 	b.Signature = signature
 }
 
 func (chain *BlockChain) AddBlock(data string) {
 	prevBlock := chain.Blocks[len(chain.Blocks)-1]
 
-	newBlock := &Block{prevBlock.BlockIndex + 1, data, []byte{}, []byte{}}
-	newBlock.DeriveHash(prevBlock.Hash, prevBlock.Signature)
-	newBlock.DeriveSignature()
-
+	newBlock := &Block{prevBlock.BlockIndex + 1, data, crypto.GetUnixTime(), []byte{}}
+	newBlock.DeriveSignature(prevBlock.Signature)
 	chain.Blocks = append(chain.Blocks, newBlock)
 
 	chain.WriteChain()
@@ -59,10 +46,10 @@ func (chain *BlockChain) WriteChain() {
 }
 
 func (chain *BlockChain) Genesis() {
-	genesisBlock := &Block{0, "Genesis", []byte{}, []byte{}}
-	genesisBlock.DeriveHash([]byte{}, []byte{})
-	genesisBlock.DeriveSignature()
+	genesisBlock := &Block{0, "Genesis", crypto.GetUnixTime(), []byte{}}
+	genesisBlock.DeriveSignature([]byte{})
 	chain.Blocks = append(chain.Blocks, genesisBlock)
+
 	chain.WriteChain()
 }
 
@@ -70,7 +57,7 @@ func (chain *BlockChain) PreviousBlock(block *Block) *Block {
 	if block.BlockIndex > 0 {
 		return chain.Blocks[block.BlockIndex-1]
 	} else {
-		return &Block{-1, "", []byte{}, []byte{}}
+		return &Block{-1, "", crypto.GetUnixTime(), []byte{}}
 	}
 }
 
@@ -79,11 +66,7 @@ func (chain *BlockChain) ValidateChain() error {
 		block := chain.Blocks[i]
 		prevBlock := chain.PreviousBlock(block)
 
-		if !block.ValidateHash(prevBlock) {
-			return errors.New(fmt.Sprintf("Block %d's hash could not be validated.", block.BlockIndex))
-		}
-
-		if !sign.VerifySignature(block.Data, block.Hash, block.Signature) {
+		if !sign.VerifySignature(block.Data, block.Timestamp, prevBlock.Signature, block.Signature) {
 			return errors.New(fmt.Sprintf("Block %d's signature could not be validated.", block.BlockIndex))
 		}
 	}
