@@ -16,10 +16,10 @@ type BlockChain struct {
 
 // This is essentially a starting point for a log entry table in a database.
 type Block struct {
-	ID        int64
-	Data      string
-	Hash      []byte
-	Signature []byte
+	BlockIndex int64
+	Data       string
+	Hash       []byte
+	Signature  []byte
 }
 
 func (b *Block) DeriveHash(prevHash []byte, prevSignature []byte) {
@@ -29,7 +29,7 @@ func (b *Block) DeriveHash(prevHash []byte, prevSignature []byte) {
 }
 
 func (b *Block) ValidateHash(prevBlock *Block) bool {
-	testBlock := &Block{b.ID, b.Data, []byte{}, []byte{}}
+	testBlock := &Block{b.BlockIndex, b.Data, []byte{}, []byte{}}
 	testBlock.DeriveHash(prevBlock.Hash, prevBlock.Signature)
 	return bytes.Compare(testBlock.Hash, b.Hash) == 0
 }
@@ -42,7 +42,7 @@ func (b *Block) DeriveSignature() {
 func (chain *BlockChain) AddBlock(data string) {
 	prevBlock := chain.Blocks[len(chain.Blocks)-1]
 
-	newBlock := &Block{prevBlock.ID +1, data, []byte{}, []byte{}}
+	newBlock := &Block{prevBlock.BlockIndex + 1, data, []byte{}, []byte{}}
 	newBlock.DeriveHash(prevBlock.Hash, prevBlock.Signature)
 	newBlock.DeriveSignature()
 
@@ -67,8 +67,8 @@ func (chain *BlockChain) Genesis() {
 }
 
 func (chain *BlockChain) PreviousBlock(block *Block) *Block {
-	if block.ID > 0 {
-		return chain.Blocks[block.ID-1]
+	if block.BlockIndex > 0 {
+		return chain.Blocks[block.BlockIndex-1]
 	} else {
 		return &Block{-1, "", []byte{}, []byte{}}
 	}
@@ -80,11 +80,11 @@ func (chain *BlockChain) ValidateChain() error {
 		prevBlock := chain.PreviousBlock(block)
 
 		if !block.ValidateHash(prevBlock) {
-			return errors.New(fmt.Sprintf("Block %d's hash could not be validated.", block.ID))
+			return errors.New(fmt.Sprintf("Block %d's hash could not be validated.", block.BlockIndex))
 		}
 
 		if !sign.VerifySignature(block.Data, block.Hash, block.Signature) {
-			return errors.New(fmt.Sprintf("Block %d's signature could not be validated.", block.ID))
+			return errors.New(fmt.Sprintf("Block %d's signature could not be validated.", block.BlockIndex))
 		}
 	}
 
